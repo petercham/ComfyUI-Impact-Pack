@@ -374,7 +374,7 @@ def enhance_detail_for_animatediff(image_frames, model, clip, vae, guide_size, g
 
     if wildcard_opt is not None and wildcard_opt != "":
         model, _, wildcard_positive = wildcards.process_with_loras(wildcard_opt, model, clip)
-
+        
         if wildcard_opt_concat_mode == "concat":
             positive = nodes.ConditioningConcat().concat(positive, wildcard_positive)[0]
         else:
@@ -420,23 +420,9 @@ def enhance_detail_for_animatediff(image_frames, model, clip, vae, guide_size, g
     # upscale the mask tensor by a factor of 2 using bilinear interpolation
     if isinstance(noise_mask, np.ndarray):
         noise_mask = torch.from_numpy(noise_mask)
-
-    if len(noise_mask.shape) == 2:
-        noise_mask = noise_mask.unsqueeze(0)
-    else:  # == 3
-        noise_mask = noise_mask
-
-    upscaled_mask = None
-
-    for single_mask in noise_mask:
-        single_mask = single_mask.unsqueeze(0).unsqueeze(0)
-        upscaled_single_mask = torch.nn.functional.interpolate(single_mask, size=(new_h, new_w), mode='bilinear', align_corners=False)
-        upscaled_single_mask = upscaled_single_mask.squeeze(0)
-
-        if upscaled_mask is None:
-            upscaled_mask = upscaled_single_mask
-        else:
-            upscaled_mask = torch.cat((upscaled_mask, upscaled_single_mask), dim=0)
+    noise_mask = noise_mask.unsqueeze(0) if len(noise_mask.shape) == 2 else noise_mask
+    upscaled_mask = [torch.nn.functional.interpolate(m.unsqueeze(0).unsqueeze(0), size=(new_h, new_w), mode='bilinear', align_corners=False).squeeze(0) for m in noise_mask]
+    upscaled_mask = torch.stack(upscaled_mask, dim=0) if len(upscaled_mask) > 1 else upscaled_mask[0]
 
     latent_frames = None
     for image in image_frames:
